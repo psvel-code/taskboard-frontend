@@ -1,0 +1,208 @@
+<div class="min-h-screen bg-background flex flex-col font-body-md text-on-surface">
+  
+  <!-- Fixed Top Header -->
+  <header class="fixed top-0 left-0 right-0 z-50 h-16 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] border-b border-surface-container">
+    <div class="w-full h-16 px-4 sm:px-gutter flex items-center justify-between gap-2 sm:gap-space-lg">
+      
+      <!-- Left: Mobile Menu Toggle, Logo & Workspace Selector -->
+      <div class="flex items-center gap-2 sm:gap-space-lg min-w-max">
+        <!-- Hamburger Button for Mobile/Tablet -->
+        <button
+          (click)="toggleMobileSidebar()"
+          class="lg:hidden p-2 -ml-2 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors cursor-pointer"
+          type="button"
+          aria-label="Toggle navigation menu">
+          <span class="material-symbols-outlined text-2xl">
+            {{ isMobileSidebarOpen() ? 'close' : 'menu' }}
+          </span>
+        </button>
+
+        <div class="flex items-center gap-space-sm cursor-pointer" routerLink="/dashboard" (click)="closeMobileSidebar()">
+          <div class="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center text-on-primary font-bold text-sm shadow-sm">
+            TB
+          </div>
+          <span class="font-title-lg text-title-lg text-on-surface tracking-tight font-semibold hidden xs:inline">TaskBoard Enterprise</span>
+          <span class="font-title-lg text-title-lg text-on-surface tracking-tight font-semibold xs:hidden">TaskBoard</span>
+        </div>
+
+        <div class="h-5 w-px bg-surface-variant hidden md:block"></div>
+        <div class="hidden md:flex items-center gap-space-xs px-space-md py-space-xs rounded-lg bg-surface-container-low text-on-surface-variant">
+          <span class="font-label-md text-label-md">Core Sprint 24</span>
+          <span class="material-symbols-outlined text-base">expand_more</span>
+        </div>
+      </div>
+
+      <!-- Search Bar (Desktop / Tablet) -->
+      <div class="flex-1 max-w-xl hidden md:flex items-center mx-2">
+        <div class="w-full flex items-center px-space-md py-1.5 rounded-lg bg-surface-container-low text-on-surface-variant focus-within:bg-surface-container-lowest focus-within:ring-2 focus-within:ring-primary transition-all">
+          <span class="material-symbols-outlined text-lg mr-space-sm">search</span>
+          <input
+            class="w-full bg-transparent font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none"
+            placeholder="Search tasks, epics, sprint backlog..."
+            type="text"
+            (keydown.enter)="onSearch($event)" />
+          <kbd class="px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant font-label-sm text-label-sm shadow-[0_1px_2px_rgba(0,0,0,0.05)]">⌘K</kbd>
+        </div>
+      </div>
+
+      <!-- Header Actions -->
+      <div class="flex items-center gap-2 sm:gap-space-md min-w-max">
+        <button
+          (click)="openNewTaskDialog()"
+          class="flex items-center gap-1 sm:gap-space-xs px-2.5 sm:px-space-md py-2 bg-primary-container text-on-primary hover:bg-primary transition-colors rounded-lg font-title-md text-title-md shadow-[0_1px_2px_rgba(15,23,42,0.05)] cursor-pointer"
+          type="button">
+          <span class="material-symbols-outlined text-base">add</span>
+          <span class="hidden sm:inline">New Task</span>
+          <span class="sm:hidden text-xs">New</span>
+        </button>
+
+        <div class="h-5 w-px bg-surface-variant hidden sm:block"></div>
+
+        <!-- Profile & User Initials -->
+        <div class="flex items-center gap-space-sm cursor-pointer group relative">
+          <div class="relative">
+            <div class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-xs shadow-sm">
+              {{ userInitials() }}
+            </div>
+            <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-surface-container-lowest"></span>
+          </div>
+          <div class="hidden xl:flex flex-col text-left">
+            <span class="font-title-md text-title-md text-on-surface leading-tight font-semibold">{{ currentUserEmail() }}</span>
+            <span class="font-label-sm text-label-sm text-on-surface-variant">Engineering Lead</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Mobile Backdrop Overlay -->
+  @if (isMobileSidebarOpen()) {
+    <div
+      (click)="closeMobileSidebar()"
+      class="fixed inset-0 bg-slate-950/50 backdrop-blur-xs z-40 lg:hidden transition-opacity">
+    </div>
+  }
+
+  <!-- Sidebar (Desktop Fixed + Mobile Off-Canvas Drawer) -->
+  <aside
+    class="fixed left-0 top-16 bottom-0 w-64 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] border-r border-surface-container z-50 flex flex-col justify-between pt-space-md pb-space-lg overflow-y-auto transition-transform duration-300 ease-in-out"
+    [ngClass]="isMobileSidebarOpen() ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
+    
+    <div class="flex flex-col gap-space-md">
+      <!-- Mobile header inside drawer with quick close -->
+      <div class="px-space-md flex items-center justify-between lg:hidden pb-2 border-b border-surface-container">
+        <span class="font-title-md text-title-md font-semibold text-on-surface">Navigation</span>
+        <button (click)="closeMobileSidebar()" class="p-1 rounded-md text-on-surface-variant hover:bg-surface-container">
+          <span class="material-symbols-outlined text-xl">close</span>
+        </button>
+      </div>
+
+      <div class="px-space-md">
+        <span class="font-label-sm text-label-sm text-outline uppercase tracking-wider font-semibold">Workspace View</span>
+      </div>
+      
+      <nav class="flex flex-col gap-space-xs px-space-sm">
+        <a
+          routerLink="/dashboard"
+          routerLinkActive="bg-secondary-container text-on-secondary-container font-semibold"
+          (click)="closeMobileSidebar()"
+          class="flex items-center gap-space-md px-space-md py-2.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
+          <span class="material-symbols-outlined text-xl">space_dashboard</span>
+          <span class="font-title-md text-title-md">Dashboard Overview</span>
+        </a>
+        <a
+          routerLink="/kanban"
+          routerLinkActive="bg-secondary-container text-on-secondary-container font-semibold"
+          (click)="closeMobileSidebar()"
+          class="flex items-center gap-space-md px-space-md py-2.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
+          <span class="material-symbols-outlined text-xl">view_kanban</span>
+          <span class="font-title-md text-title-md">Kanban Board</span>
+        </a>
+        <a
+          routerLink="/task-list"
+          routerLinkActive="bg-secondary-container text-on-secondary-container font-semibold"
+          (click)="closeMobileSidebar()"
+          class="flex items-center gap-space-md px-space-md py-2.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
+          <span class="material-symbols-outlined text-xl">table_chart</span>
+          <span class="font-title-md text-title-md">Task List</span>
+        </a>
+        <a
+          routerLink="/settings"
+          routerLinkActive="bg-secondary-container text-on-secondary-container font-semibold"
+          (click)="closeMobileSidebar()"
+          class="flex items-center gap-space-md px-space-md py-2.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
+          <span class="material-symbols-outlined text-xl">settings</span>
+          <span class="font-title-md text-title-md">Settings</span>
+        </a>
+      </nav>
+    </div>
+
+    <!-- Sidebar Footer: Sprint Capacity Gauge & Logout -->
+    <div class="px-space-md flex flex-col gap-space-md pt-space-lg border-t border-surface-container">
+      <div class="p-space-md rounded-xl bg-surface-container-low flex flex-col gap-space-sm">
+        <div class="flex items-center justify-between">
+          <span class="font-label-md text-label-md text-on-surface font-medium">Sprint Capacity</span>
+          <span class="font-label-md text-label-md text-primary font-semibold">{{ capacityPct() }}%</span>
+        </div>
+        <div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+          <div class="h-full bg-primary rounded-full transition-all duration-300" [style.width.%]="capacityPct()"></div>
+        </div>
+        <div class="flex items-center justify-between text-on-surface-variant">
+          <span class="font-label-sm text-label-sm">{{ allocatedSP() }} / {{ limitSP() }} pts</span>
+          <span class="font-label-sm text-label-sm">{{ remainingSP() }} pts left</span>
+        </div>
+      </div>
+
+      <button
+        (click)="logout()"
+        class="flex items-center gap-space-md px-space-md py-2 rounded-lg text-on-surface-variant hover:bg-error-container hover:text-on-error-container transition-colors cursor-pointer"
+        type="button">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="font-title-md text-title-md">Log out</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Layout Body (Responsive margin: 0 on mobile/tablet, 64 (256px) on desktop) -->
+  <div class="lg:pl-64 pl-0 flex flex-col min-h-screen pt-16 w-full">
+    
+    <!-- Breadcrumb & Fast Nav Bar (Responsive horizontally scrollable) -->
+    <div class="sticky top-16 z-30 min-h-12 bg-surface-container-lowest shadow-[0_1px_4px_rgba(0,0,0,0.02)] border-b border-surface-container flex flex-wrap sm:flex-nowrap items-center justify-between px-4 sm:px-space-xl py-2 sm:py-0 gap-2 overflow-x-auto">
+      <div class="flex items-center gap-space-sm text-on-surface-variant font-label-md text-label-md whitespace-nowrap overflow-x-auto">
+        <span class="hover:text-on-surface cursor-pointer" routerLink="/dashboard">Engineering</span>
+        <span class="material-symbols-outlined text-sm">chevron_right</span>
+        <span class="hover:text-on-surface cursor-pointer" routerLink="/kanban">Core Platform</span>
+        <span class="material-symbols-outlined text-sm">chevron_right</span>
+        <span class="text-on-surface font-semibold">Sprint 24 Board</span>
+      </div>
+
+      <nav class="flex items-center gap-space-xs p-1 rounded-lg bg-surface-container-low shrink-0">
+        <a
+          routerLink="/kanban"
+          routerLinkActive="bg-surface-container text-on-surface font-semibold"
+          class="px-3 sm:px-space-md py-1 rounded-md text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-colors cursor-pointer">
+          Board
+        </a>
+        <a
+          routerLink="/task-list"
+          routerLinkActive="bg-surface-container text-on-surface font-semibold"
+          class="px-3 sm:px-space-md py-1 rounded-md text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-colors cursor-pointer">
+          List
+        </a>
+        <a
+          routerLink="/settings"
+          routerLinkActive="bg-surface-container text-on-surface font-semibold"
+          class="px-3 sm:px-space-md py-1 rounded-md text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-colors cursor-pointer">
+          Settings
+        </a>
+      </nav>
+    </div>
+
+    <!-- Routed Feature View Area -->
+    <main class="w-full flex-1 bg-background overflow-x-hidden">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+
+</div>

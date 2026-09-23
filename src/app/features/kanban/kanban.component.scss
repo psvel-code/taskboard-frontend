@@ -1,0 +1,10 @@
+/* Kanban Component Styles */
+:host {
+  display: block;
+  width: 100%;
+}
+
+/* Horizontal scroll smooth drag experience */
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}

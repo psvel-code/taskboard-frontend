@@ -1,0 +1,12 @@
+/* Task List Component Styles */
+:host {
+  display: block;
+  width: 100%;
+}
+
+/* Ensure horizontal scroll for MatTable on mobile / tablet screens */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}

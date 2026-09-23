@@ -1,0 +1,14 @@
+/* Layout Component Styles */
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+/* Custom scrollbars for responsive sidebar & overflow areas */
+aside::-webkit-scrollbar {
+  width: 4px;
+}
+aside::-webkit-scrollbar-thumb {
+  background-color: var(--color-surface-container);
+  border-radius: 9999px;
+}
