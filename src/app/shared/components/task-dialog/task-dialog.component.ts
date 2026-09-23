@@ -1,0 +1,376 @@
+import { Component, inject, OnInit, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { Task, TaskPriority, TaskStatus } from '../../../core/models/task.model';
+import { TaskService } from '../../../core/services/task.service';
+import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
+
+export interface TaskDialogData {
+  task?: Task;
+  defaultStatus?: TaskStatus;
+}
+
+@Component({
+  selector: 'app-task-dialog',
+  standalone: true,
+  imports: [CommonModule, ReactiveFormsModule],
+  template: `
+    <div class="w-full max-w-[680px] bg-surface-container-lowest rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in duration-200">
+      
+      <!-- 1. Dialog Header (mat-dialog-title) -->
+      <div class="px-gutter-lg py-space-md bg-surface-container-lowest flex items-center justify-between border-b border-surface-container">
+        <div class="flex items-center gap-space-md">
+          <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-primary-container text-on-primary">
+            <span class="material-symbols-outlined text-lg">{{ isEditMode ? 'edit_document' : 'add_task' }}</span>
+          </div>
+          <div class="flex items-center gap-space-sm">
+            <h2 class="font-headline-sm text-headline-sm text-on-surface tracking-tight font-semibold">
+              {{ isEditMode ? 'Edit Task: TB-' + data.task?.id : 'Create New Task' }}
+            </h2>
+            @if (isEditMode) {
+              <span class="px-space-sm py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-label-sm font-semibold flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                {{ taskForm.get('status')?.value }}
+              </span>
+            }
+          </div>
+        </div>
+        <div class="flex items-center gap-space-xs text-on-surface-variant">
+          <button
+            (click)="dialogRef.close()"
+            class="p-1.5 rounded-lg hover:bg-surface-container hover:text-on-surface transition-colors"
+            title="Close Dialog" type="button">
+            <span class="material-symbols-outlined text-lg">close</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. Critical Capacity Feedback Banner (Angular Alert Bar) -->
+      @if (capacityError()) {
+        <div class="mx-gutter-lg mt-space-md p-space-md rounded-lg bg-error-container text-on-error-container shadow-sm flex flex-col gap-space-xs animate-in slide-in-from-top-2 duration-150">
+          <div class="flex items-start gap-space-sm">
+            <span class="material-symbols-outlined text-error text-xl shrink-0 mt-0.5">warning</span>
+            <div class="flex-1 flex flex-col gap-space-xs">
+              <div class="flex items-center justify-between">
+                <span class="font-title-md text-title-md text-error font-bold leading-tight">Capacity Exceeded Alert</span>
+                <span class="px-2 py-0.5 rounded bg-error text-on-error font-label-sm text-label-sm font-semibold">Over Limit</span>
+              </div>
+              <p class="font-body-sm text-body-sm text-on-error-container leading-relaxed">
+                {{ capacityError()?.message }}
+              </p>
+              <div class="flex items-center justify-between pt-1">
+                <span class="font-label-md text-label-md text-error font-semibold">
+                  Adjust planned date or reduce story points to save.
+                </span>
+                <span class="font-label-sm text-label-sm text-on-surface-variant">
+                  Remaining daily: {{ capacityError()?.remainingDaily ?? 0 }} SP • Weekly: {{ capacityError()?.remainingWeekly ?? 0 }} SP
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- 3. Reactive Form Fields Content Area (mat-dialog-content) -->
+      <form [formGroup]="taskForm" class="px-gutter-lg py-space-md flex flex-col gap-space-md overflow-y-auto max-h-[calc(85vh-160px)]">
+        
+        <!-- Task Title -->
+        <div class="flex flex-col gap-space-xs">
+          <label class="font-label-md text-label-md text-on-surface-variant flex items-center justify-between" for="task-title">
+            <span>Task Title <span class="text-error">*</span></span>
+            <span class="font-label-sm text-label-sm text-outline">{{ taskForm.get('title')?.value?.length || 0 }} / 255 chars</span>
+          </label>
+          <div class="relative flex items-center rounded-lg bg-surface-container-lowest shadow-sm">
+            <input
+              id="task-title"
+              formControlName="title"
+              class="w-full px-space-md py-2.5 rounded-lg bg-surface-container-low text-on-surface font-title-md text-title-md focus:outline-none focus:bg-surface-container-lowest focus:shadow-md transition-all placeholder:text-outline"
+              placeholder="e.g. Refactor PostgreSQL connection pooling for high-throughput reads"
+              type="text" />
+          </div>
+          @if (taskForm.get('title')?.touched && taskForm.get('title')?.invalid) {
+            <span class="font-label-sm text-label-sm text-error">Task title is required.</span>
+          }
+        </div>
+
+        <!-- Description -->
+        <div class="flex flex-col gap-space-xs">
+          <label class="font-label-md text-label-md text-on-surface-variant" for="task-desc">Task Description</label>
+          <div class="rounded-lg bg-surface-container-low shadow-sm overflow-hidden focus-within:shadow-md focus-within:bg-surface-container-lowest transition-all">
+            <!-- Formatting Bar (Stitch matching) -->
+            <div class="flex items-center gap-1 px-space-md py-1.5 bg-surface-container shadow-sm text-on-surface-variant">
+              <span class="material-symbols-outlined text-base cursor-pointer hover:text-on-surface">format_bold</span>
+              <span class="material-symbols-outlined text-base cursor-pointer hover:text-on-surface">format_italic</span>
+              <span class="material-symbols-outlined text-base cursor-pointer hover:text-on-surface">code</span>
+              <div class="h-4 w-px bg-surface-variant mx-1"></div>
+              <span class="material-symbols-outlined text-base cursor-pointer hover:text-on-surface">format_list_bulleted</span>
+              <span class="material-symbols-outlined text-base cursor-pointer hover:text-on-surface">format_list_numbered</span>
+              <span class="material-symbols-outlined text-base cursor-pointer hover:text-on-surface">attach_file</span>
+            </div>
+            <textarea
+              id="task-desc"
+              formControlName="description"
+              class="w-full p-space-md bg-transparent text-on-surface font-body-sm text-body-sm focus:outline-none resize-none leading-relaxed placeholder:text-outline"
+              placeholder="Provide architectural context, acceptance criteria, or repro steps..."
+              rows="3"></textarea>
+          </div>
+        </div>
+
+        <!-- Two-Column Layout for Metadata Fields -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
+          
+          <!-- Status Dropdown -->
+          <div class="flex flex-col gap-space-xs">
+            <label class="font-label-md text-label-md text-on-surface-variant" for="task-status">Workflow Status</label>
+            <div class="relative flex items-center rounded-lg bg-surface-container-low shadow-sm">
+              <select
+                id="task-status"
+                formControlName="status"
+                class="w-full px-space-md py-2 rounded-lg bg-transparent text-on-surface font-title-md text-title-md focus:outline-none cursor-pointer">
+                <option value="Backlog">Backlog (No capacity consumed)</option>
+                <option value="Planned">Planned</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Priority Selector -->
+          <div class="flex flex-col gap-space-xs">
+            <label class="font-label-md text-label-md text-on-surface-variant" for="task-priority">Priority Level <span class="text-error">*</span></label>
+            <div class="relative flex items-center rounded-lg bg-surface-container-low shadow-sm">
+              <select
+                id="task-priority"
+                formControlName="priority"
+                class="w-full px-space-md py-2 rounded-lg bg-transparent text-on-surface font-title-md text-title-md focus:outline-none cursor-pointer">
+                <option value="Low">Low Priority</option>
+                <option value="Medium">Medium Priority</option>
+                <option value="High">High Priority</option>
+                <option value="Critical">Critical Priority</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Story Points Field with Visual Pip Gauge -->
+          <div class="flex flex-col gap-space-xs">
+            <div class="flex items-center justify-between">
+              <label class="font-label-md text-label-md text-on-surface-variant" for="task-sp">Story Points <span class="text-error">*</span></label>
+              <span class="font-label-sm text-label-sm font-semibold"
+                    [ngClass]="(taskForm.get('story_points')?.value || 0) > 8 ? 'text-error' : 'text-primary'">
+                {{ (taskForm.get('story_points')?.value || 0) > 8 ? 'High Workload (>8 SP)' : 'Capacity Baseline' }}
+              </span>
+            </div>
+            <div class="flex items-center gap-space-sm px-space-md py-1.5 rounded-lg bg-surface-container-low shadow-sm">
+              <input
+                id="task-sp"
+                formControlName="story_points"
+                class="w-14 bg-transparent font-title-md text-title-md font-bold focus:outline-none"
+                [ngClass]="(taskForm.get('story_points')?.value || 0) > 8 ? 'text-error' : 'text-primary'"
+                type="number" min="1" max="40" />
+              <!-- Visual capacity pip gauge -->
+              <div class="flex-1 flex items-center gap-1">
+                @for (pip of [1,2,3,4,5,6,7,8]; track pip) {
+                  <span class="h-2 flex-1 rounded-sm transition-colors"
+                        [ngClass]="pip <= (taskForm.get('story_points')?.value || 0) 
+                          ? ((taskForm.get('story_points')?.value || 0) > 8 ? 'bg-error' : 'bg-primary') 
+                          : 'bg-surface-container-high'">
+                  </span>
+                }
+              </div>
+            </div>
+            @if (taskForm.get('story_points')?.touched && taskForm.get('story_points')?.invalid) {
+              <span class="font-label-sm text-label-sm text-error">Story Points must be greater than zero.</span>
+            }
+          </div>
+
+          <!-- Planned Date Picker -->
+          <div class="flex flex-col gap-space-xs">
+            <label class="font-label-md text-label-md text-on-surface-variant" for="task-pdate">Planned Date <span class="text-error">*</span></label>
+            <div class="flex items-center justify-between px-space-md py-1.5 rounded-lg bg-surface-container-low shadow-sm">
+              <input
+                id="task-pdate"
+                formControlName="planned_date"
+                type="date"
+                class="w-full bg-transparent font-body-md text-body-md text-on-surface focus:outline-none cursor-pointer" />
+            </div>
+            @if (taskForm.get('planned_date')?.touched && taskForm.get('planned_date')?.invalid) {
+              <span class="font-label-sm text-label-sm text-error">Planned Date is required.</span>
+            }
+          </div>
+
+          <!-- Due Date Picker -->
+          <div class="flex flex-col gap-space-xs sm:col-span-2">
+            <label class="font-label-md text-label-md text-on-surface-variant" for="task-ddate">Due Date <span class="text-error">*</span></label>
+            <div class="flex items-center justify-between px-space-md py-1.5 rounded-lg bg-surface-container-low shadow-sm">
+              <input
+                id="task-ddate"
+                formControlName="due_date"
+                type="date"
+                class="w-full bg-transparent font-body-md text-body-md text-on-surface focus:outline-none cursor-pointer" />
+            </div>
+            @if (taskForm.errors?.['invalidDueDate']) {
+              <span class="font-label-sm text-label-sm text-error">Due Date cannot be earlier than the Planned Date.</span>
+            }
+          </div>
+
+        </div>
+
+      </form>
+
+      <!-- 4. Dialog Actions Footer (mat-dialog-actions) -->
+      <div class="px-gutter-lg py-space-md bg-surface-container-low flex items-center justify-between shadow-sm border-t border-surface-container">
+        <!-- Left: Destructive Action (if edit) -->
+        <div>
+          @if (isEditMode) {
+            <button
+              (click)="onDelete()"
+              class="flex items-center gap-space-xs px-space-md py-2 rounded-lg text-error hover:bg-error-container hover:text-on-error-container transition-colors font-title-md text-title-md cursor-pointer"
+              type="button">
+              <span class="material-symbols-outlined text-lg">delete</span>
+              <span>Delete Task</span>
+            </button>
+          }
+        </div>
+
+        <!-- Right: Cancel & Save Buttons -->
+        <div class="flex items-center gap-space-md">
+          <button
+            (click)="dialogRef.close(false)"
+            class="px-space-md py-2 rounded-lg bg-surface-container-lowest text-on-surface hover:bg-surface-container transition-colors font-title-md text-title-md shadow-sm cursor-pointer"
+            type="button">
+            Cancel
+          </button>
+          <button
+            (click)="onSubmit()"
+            [disabled]="isSaving() || taskForm.invalid"
+            class="flex items-center gap-space-sm px-space-lg py-2 rounded-lg bg-primary-container text-on-primary hover:bg-primary transition-all font-title-md text-title-md shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
+            type="button">
+            @if (isSaving()) {
+              <svg class="animate-spin h-4 w-4 text-on-primary" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>Saving...</span>
+            } @else {
+              <span>{{ isEditMode ? 'Update Task' : 'Save Task' }}</span>
+            }
+          </button>
+        </div>
+      </div>
+
+    </div>
+  `
+})
+export class TaskDialogComponent implements OnInit {
+  dialogRef = inject(MatDialogRef<TaskDialogComponent>);
+  data: TaskDialogData = inject(MAT_DIALOG_DATA);
+  private fb = inject(FormBuilder);
+  private taskService = inject(TaskService);
+  private dialog = inject(MatDialog);
+
+  isEditMode = !!this.data.task;
+  isSaving = signal<boolean>(false);
+  capacityError = signal<{ message: string; remainingDaily?: number; remainingWeekly?: number } | null>(null);
+
+  taskForm!: FormGroup;
+
+  ngOnInit(): void {
+    const today = new Date().toISOString().split('T')[0];
+    const initialPlanned = this.data.task?.planned_date || today;
+    const initialDue = this.data.task?.due_date || initialPlanned;
+
+    this.taskForm = this.fb.group({
+      title: [this.data.task?.title || '', [Validators.required, Validators.maxLength(255)]],
+      description: [this.data.task?.description || ''],
+      story_points: [this.data.task?.story_points || 3, [Validators.required, Validators.min(1)]],
+      priority: [this.data.task?.priority || 'Medium', [Validators.required]],
+      status: [this.data.task?.status || this.data.defaultStatus || 'Backlog', [Validators.required]],
+      planned_date: [initialPlanned, [Validators.required]],
+      due_date: [initialDue, [Validators.required]]
+    }, { validators: this.dateComparisonValidator });
+  }
+
+  dateComparisonValidator(group: FormGroup) {
+    const pDate = group.get('planned_date')?.value;
+    const dDate = group.get('due_date')?.value;
+    if (pDate && dDate) {
+      if (new Date(dDate) < new Date(pDate)) {
+        return { invalidDueDate: true };
+      }
+    }
+    return null;
+  }
+
+  onSubmit(): void {
+    if (this.taskForm.invalid) {
+      this.taskForm.markAllAsTouched();
+      return;
+    }
+
+    this.isSaving.set(true);
+    this.capacityError.set(null);
+
+    const formValue = this.taskForm.value;
+
+    if (this.isEditMode && this.data.task) {
+      this.taskService.updateTask(this.data.task.id, formValue).subscribe({
+        next: (res) => {
+          this.isSaving.set(false);
+          this.dialogRef.close(res.data);
+        },
+        error: (err) => {
+          this.isSaving.set(false);
+          if (err.error?.code === 'CAPACITY_EXCEEDED') {
+            this.capacityError.set({
+              message: err.error.message,
+              remainingDaily: err.error.remainingDaily,
+              remainingWeekly: err.error.remainingWeekly
+            });
+          }
+        }
+      });
+    } else {
+      this.taskService.createTask(formValue).subscribe({
+        next: (res) => {
+          this.isSaving.set(false);
+          this.dialogRef.close(res.data);
+        },
+        error: (err) => {
+          this.isSaving.set(false);
+          if (err.error?.code === 'CAPACITY_EXCEEDED') {
+            this.capacityError.set({
+              message: err.error.message,
+              remainingDaily: err.error.remainingDaily,
+              remainingWeekly: err.error.remainingWeekly
+            });
+          }
+        }
+      });
+    }
+  }
+
+  onDelete(): void {
+    if (!this.data.task) return;
+
+    const confirmRef = this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: 'Delete Task',
+        message: `Are you sure you want to permanently delete task TB-${this.data.task.id}: "${this.data.task.title}"? This action cannot be undone.`,
+        confirmText: 'Delete Task',
+        cancelText: 'Cancel',
+        isDestructive: true
+      }
+    });
+
+    confirmRef.afterClosed().subscribe(confirmed => {
+      if (confirmed && this.data.task) {
+        this.taskService.deleteTask(this.data.task.id).subscribe({
+          next: () => {
+            this.dialogRef.close({ deleted: true, id: this.data.task!.id });
+          }
+        });
+      }
+    });
+  }
+}
